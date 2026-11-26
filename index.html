@@ -42,6 +42,7 @@
         header p {
             color: #64748b;
             font-size: 14px;
+            margin-top: 5px;
         }
 
         h2 {
@@ -102,7 +103,7 @@
             padding: 13px;
             border: none;
             border-radius: 8px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: bold;
             cursor: pointer;
         }
@@ -147,6 +148,41 @@
             margin: 8px 0;
         }
 
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            text-align: left;
+        }
+
+        .report-table th,
+        .report-table td {
+            border: 1px solid #cbd5e1;
+            padding: 10px;
+            font-size: 13px;
+        }
+
+        .report-table th {
+            background: #dbeafe;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .download {
+            background: #16a34a;
+            color: white;
+        }
+
+        .print {
+            background: #475569;
+            color: white;
+        }
+
         .error {
             display: none;
             color: #dc2626;
@@ -173,6 +209,50 @@
             .subject-row {
                 grid-template-columns: 1fr 85px;
                 gap: 8px;
+            }
+
+            .buttons,
+            .report-actions {
+                flex-direction: column;
+            }
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            body * {
+                visibility: hidden;
+            }
+
+            #result,
+            #result * {
+                visibility: visible;
+            }
+
+            #result {
+                display: block !important;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 25px;
+                border: none;
+                background: white;
+                color: black;
+            }
+
+            .report-actions {
+                display: none !important;
+            }
+
+            .report-table th {
+                background: #dbeafe !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
         }
     </style>
@@ -219,7 +299,9 @@
     <p class="error" id="error"></p>
 
     <div class="result" id="result">
-        <h2>GPA Result</h2>
+
+        <h2>GPA Result Report</h2>
+
         <p id="resultName"></p>
         <p id="resultRoll"></p>
         <p id="totalMarks"></p>
@@ -227,6 +309,29 @@
 
         <div class="gpa" id="gpaValue">0.00</div>
         <p>Final GPA out of 10</p>
+
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Marks</th>
+                </tr>
+            </thead>
+            <tbody id="reportSubjects"></tbody>
+        </table>
+
+        <div class="report-actions">
+
+            <button class="download" onclick="downloadReport()">
+                Download GPA Report
+            </button>
+
+            <button class="print" onclick="printReport()">
+                Print GPA Report
+            </button>
+
+        </div>
+
     </div>
 
     <footer>
@@ -247,6 +352,8 @@ const subjects = [
     "Computer Programming Lab",
     "Language Lab"
 ];
+
+let reportData = null;
 
 const subjectContainer = document.getElementById("subjects");
 
@@ -280,14 +387,17 @@ function calculateGPA() {
 
     error.style.display = "none";
     result.style.display = "none";
+    reportData = null;
 
     if (name === "" || roll === "") {
-        error.textContent = "Please enter student name and roll number.";
+        error.textContent =
+            "Please enter student name and roll number.";
         error.style.display = "block";
         return;
     }
 
     let total = 0;
+    let marksList = [];
 
     for (let i = 0; i < subjects.length; i++) {
 
@@ -295,7 +405,8 @@ function calculateGPA() {
         const value = input.value.trim();
 
         if (value === "") {
-            error.textContent = "Please enter marks for all eight subjects.";
+            error.textContent =
+                "Please enter marks for all eight subjects.";
             error.style.display = "block";
             return;
         }
@@ -303,16 +414,27 @@ function calculateGPA() {
         const marks = Number(value);
 
         if (!Number.isFinite(marks) || marks < 0 || marks > 100) {
-            error.textContent = "Marks must be between 0 and 100.";
+            error.textContent =
+                "Marks must be between 0 and 100.";
             error.style.display = "block";
             return;
         }
 
+        marksList.push(marks);
         total += marks;
     }
 
     const average = total / subjects.length;
     const gpa = average / 10;
+
+    reportData = {
+        name,
+        roll,
+        total,
+        average,
+        gpa,
+        marksList
+    };
 
     document.getElementById("resultName").textContent =
         "Student Name: " + name;
@@ -329,7 +451,89 @@ function calculateGPA() {
     document.getElementById("gpaValue").textContent =
         gpa.toFixed(2);
 
+    const reportSubjects =
+        document.getElementById("reportSubjects");
+
+    reportSubjects.innerHTML = "";
+
+    subjects.forEach((subject, index) => {
+
+        const row = document.createElement("tr");
+
+        const subjectCell = document.createElement("td");
+        subjectCell.textContent = subject;
+
+        const marksCell = document.createElement("td");
+        marksCell.textContent = marksList[index].toFixed(2);
+
+        row.appendChild(subjectCell);
+        row.appendChild(marksCell);
+
+        reportSubjects.appendChild(row);
+    });
+
     result.style.display = "block";
+
+    result.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
+}
+
+function downloadReport() {
+
+    if (!reportData) {
+        alert("Please calculate GPA first.");
+        return;
+    }
+
+    let csv = "GPA CALCULATION SYSTEM\n\n";
+
+    csv += "Student Name," + csvEscape(reportData.name) + "\n";
+    csv += "Roll Number," + csvEscape(reportData.roll) + "\n\n";
+
+    csv += "Subject,Marks\n";
+
+    subjects.forEach((subject, index) => {
+        csv += csvEscape(subject) + "," +
+               reportData.marksList[index].toFixed(2) + "\n";
+    });
+
+    csv += "\nTotal Marks," + reportData.total.toFixed(2) + " / 800\n";
+    csv += "Average Marks," + reportData.average.toFixed(2) + "\n";
+    csv += "Final GPA," + reportData.gpa.toFixed(2) + " / 10\n";
+
+    const blob = new Blob(
+        ["\uFEFF" + csv],
+        { type: "text/csv;charset=utf-8;" }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "GPA_Report_" +
+        reportData.roll.replace(/[^a-zA-Z0-9_-]/g, "_") + ".csv";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+}
+
+function csvEscape(value) {
+    return '"' + String(value).replace(/"/g, '""') + '"';
+}
+
+function printReport() {
+
+    if (!reportData) {
+        alert("Please calculate GPA first.");
+        return;
+    }
+
+    window.print();
 }
 
 function resetForm() {
@@ -343,6 +547,8 @@ function resetForm() {
 
     document.getElementById("result").style.display = "none";
     document.getElementById("error").style.display = "none";
+
+    reportData = null;
 }
 
 </script>
